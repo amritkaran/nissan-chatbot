@@ -1,11 +1,8 @@
 [phases.setup]
-nixPkgs = ["python311"]
+nixPkgs = ["python311", "gcc"]
 
 [phases.install]
-cmds = ["cd backend && pip install -r requirements.txt"]
-
-[phases.build]
-cmds = ["echo 'Build complete'"]
+cmds = ["pip install -r backend/requirements.txt"]
 
 [start]
-cmd = "cd backend && uvicorn api:app --host 0.0.0.0 --port ${PORT:-8000}"
+cmd = "cd backend && python -m uvicorn api:app --host 0.0.0.0 --port ${PORT:-8000}"
