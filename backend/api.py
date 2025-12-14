@@ -27,8 +27,8 @@ ELEVENLABS_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM")  
 
 # Vapi configuration
 VAPI_API_KEY = os.getenv("VAPI_API_KEY")
-VAPI_ASSISTANT_ID = os.getenv("VAPI_ASSISTANT_ID")
 VAPI_PHONE_NUMBER_ID = os.getenv("VAPI_PHONE_NUMBER_ID")
+BACKEND_URL = os.getenv("BACKEND_URL", "https://nissan-chatbot-production.up.railway.app")
 
 # Store active threads (in production, use Redis or database)
 active_threads: dict[str, str] = {}
@@ -98,7 +98,7 @@ async def health_check():
         "status": "healthy",
         "assistant_configured": bool(ASSISTANT_ID),
         "voice_configured": bool(DEEPGRAM_API_KEY and ELEVENLABS_API_KEY),
-        "vapi_configured": bool(VAPI_API_KEY and VAPI_ASSISTANT_ID and VAPI_PHONE_NUMBER_ID),
+        "vapi_configured": bool(VAPI_API_KEY and VAPI_PHONE_NUMBER_ID),
     }
 
 
@@ -438,12 +438,28 @@ async def voice_websocket(websocket: WebSocket):
             del active_threads[session_id]
 
 
+# Language-specific greetings for Rashi
+LANGUAGE_GREETINGS = {
+    "en": "Hello! This is Rashi from Nissan customer support. How can I help you today?",
+    "fr": "Bonjour! Je suis Rashi du service client Nissan. Comment puis-je vous aider aujourd'hui?",
+    "de": "Hallo! Hier ist Rashi vom Nissan Kundenservice. Wie kann ich Ihnen heute helfen?",
+    "es": "¡Hola! Soy Rashi del servicio al cliente de Nissan. ¿Cómo puedo ayudarte hoy?",
+    "it": "Ciao! Sono Rashi dell'assistenza clienti Nissan. Come posso aiutarti oggi?",
+    "nl": "Hallo! Dit is Rashi van Nissan klantenservice. Hoe kan ik u vandaag helpen?",
+    "pt": "Olá! Aqui é a Rashi do suporte ao cliente Nissan. Como posso ajudá-lo hoje?",
+    "pl": "Cześć! Tu Rashi z obsługi klienta Nissan. Jak mogę ci dzisiaj pomóc?",
+    "sv": "Hej! Det här är Rashi från Nissan kundtjänst. Hur kan jag hjälpa dig idag?",
+    "da": "Hej! Her er Rashi fra Nissan kundeservice. Hvordan kan jeg hjælpe dig i dag?",
+    "no": "Hei! Dette er Rashi fra Nissan kundeservice. Hvordan kan jeg hjelpe deg i dag?",
+}
+
+
 # Vapi Voice Callback endpoints
 @app.post("/call/request", response_model=CallbackResponse)
 async def request_callback(request: CallbackRequest):
     """Initiate a Vapi outbound call to the user."""
-    if not VAPI_API_KEY or not VAPI_ASSISTANT_ID or not VAPI_PHONE_NUMBER_ID:
-        raise HTTPException(status_code=500, detail="Vapi not configured")
+    if not VAPI_API_KEY or not VAPI_PHONE_NUMBER_ID:
+        raise HTTPException(status_code=500, detail="Vapi not configured. Set VAPI_API_KEY and VAPI_PHONE_NUMBER_ID.")
 
     # Get conversation context if session exists
     conversation_context = "No previous conversation."
@@ -470,7 +486,76 @@ async def request_callback(request: CallbackRequest):
     # Format phone number
     full_phone = f"{request.country_code}{request.phone_number}".replace(" ", "")
 
-    # Create Vapi outbound call
+    # Get greeting in user's language
+    first_message = LANGUAGE_GREETINGS.get(request.language, LANGUAGE_GREETINGS["en"])
+
+    # Add context summary if available
+    if conversation_context != "No previous conversation.":
+        if request.language == "en":
+            first_message += " I see you were asking about some Nissan topics earlier. I'm here to continue helping you."
+        elif request.language == "fr":
+            first_message += " Je vois que vous posiez des questions sur Nissan. Je suis là pour continuer à vous aider."
+        elif request.language == "de":
+            first_message += " Ich sehe, Sie hatten Fragen zu Nissan. Ich bin hier, um Ihnen weiter zu helfen."
+        else:
+            first_message += " I see you were asking about some Nissan topics earlier. I'm here to continue helping you."
+
+    # Build inline assistant configuration
+    assistant_config = {
+        "name": "Rashi",
+        "model": {
+            "provider": "openai",
+            "model": "gpt-4o-mini",
+            "temperature": 0.7,
+            "systemPrompt": f"""You are Rashi, a friendly and professional Nissan customer service assistant.
+You speak multiple European languages fluently. The customer's preferred language is: {request.language}
+
+Your personality:
+- Warm, helpful, and professional
+- Concise - keep responses to 2-3 sentences for voice
+- Knowledgeable about Nissan vehicles
+
+When answering Nissan-related questions, ALWAYS use the get_nissan_info function to get accurate information from the knowledge base.
+
+Previous conversation context:
+{conversation_context}
+
+Guidelines:
+- Speak in the customer's language ({request.language})
+- Be concise and friendly
+- Use get_nissan_info for any Nissan vehicle, feature, or service questions
+- If you don't know something, say so honestly
+- End calls politely when the customer is satisfied""",
+            "functions": [
+                {
+                    "name": "get_nissan_info",
+                    "description": "Get information about Nissan vehicles, features, prices, specifications, or services from the knowledge base. Use this for ANY Nissan-related question.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "question": {
+                                "type": "string",
+                                "description": "The customer's question about Nissan vehicles or services"
+                            }
+                        },
+                        "required": ["question"]
+                    }
+                }
+            ]
+        },
+        "voice": {
+            "provider": "11labs",
+            "voiceId": "21m00Tcm4TlvDq8ikWAM",  # Rachel - warm female voice
+            "stability": 0.5,
+            "similarityBoost": 0.75
+        },
+        "firstMessage": first_message,
+        "serverUrl": f"{BACKEND_URL}/vapi/webhook",
+        "endCallFunctionEnabled": True,
+        "endCallMessage": "Thank you for calling Nissan. Have a great day! Goodbye.",
+    }
+
+    # Create Vapi outbound call with inline assistant
     async with httpx.AsyncClient() as client:
         response = await client.post(
             "https://api.vapi.ai/call/phone",
@@ -479,17 +564,11 @@ async def request_callback(request: CallbackRequest):
                 "Content-Type": "application/json",
             },
             json={
-                "assistantId": VAPI_ASSISTANT_ID,
                 "phoneNumberId": VAPI_PHONE_NUMBER_ID,
                 "customer": {
                     "number": full_phone,
                 },
-                "assistantOverrides": {
-                    "variableValues": {
-                        "conversation_context": conversation_context,
-                        "language": request.language,
-                    }
-                }
+                "assistant": assistant_config,
             },
             timeout=30.0,
         )
@@ -507,9 +586,37 @@ async def request_callback(request: CallbackRequest):
     )
 
 
+@app.post("/vapi/webhook")
+async def vapi_webhook_handler(request: Request):
+    """Main webhook endpoint for Vapi server events."""
+    try:
+        body = await request.json()
+        message_type = body.get("message", {}).get("type", "")
+
+        print(f"Vapi webhook received: {message_type}")
+
+        # Handle function calls
+        if message_type == "function-call":
+            function_call = body.get("message", {}).get("functionCall", {})
+            function_name = function_call.get("name")
+            parameters = function_call.get("parameters", {})
+
+            if function_name == "get_nissan_info":
+                question = parameters.get("question", "")
+                result = await _query_nissan_knowledge(question)
+                return JSONResponse({"result": result})
+
+        # Handle other message types (transcript, end-of-call, etc.)
+        return JSONResponse({"status": "ok"})
+
+    except Exception as e:
+        print(f"Error in Vapi webhook: {e}")
+        return JSONResponse({"status": "error", "message": str(e)})
+
+
 @app.post("/vapi/function")
 async def vapi_function_handler(request: Request):
-    """Webhook endpoint for Vapi function calls (RAG queries)."""
+    """Legacy endpoint for Vapi function calls (RAG queries)."""
     try:
         body = await request.json()
         print(f"Vapi function call received: {json.dumps(body, indent=2)}")
@@ -529,56 +636,8 @@ async def vapi_function_handler(request: Request):
 
         if function_name == "get_nissan_info":
             question = parameters.get("question", "")
-
-            if not question:
-                return JSONResponse({
-                    "result": "I didn't catch your question. Could you please repeat it?"
-                })
-
-            # Create a temporary thread for this query
-            thread = openai_client.beta.threads.create()
-
-            # Add the question
-            openai_client.beta.threads.messages.create(
-                thread_id=thread.id,
-                role="user",
-                content=question,
-            )
-
-            # Run the assistant
-            run = openai_client.beta.threads.runs.create_and_poll(
-                thread_id=thread.id,
-                assistant_id=ASSISTANT_ID,
-            )
-
-            if run.status != "completed":
-                return JSONResponse({
-                    "result": "I'm having trouble looking that up right now. Is there something else I can help you with?"
-                })
-
-            # Get the response
-            messages = openai_client.beta.threads.messages.list(
-                thread_id=thread.id,
-                order="desc",
-                limit=1,
-            )
-
-            response_text = "I couldn't find specific information about that."
-            if messages.data:
-                for content in messages.data[0].content:
-                    if content.type == "text":
-                        # Clean up the response for voice (remove citations)
-                        response_text = content.text.value
-                        # Remove citation markers like 【4:0†source】
-                        import re
-                        response_text = re.sub(r'【[^】]+】', '', response_text)
-                        # Truncate for voice (keep it concise)
-                        if len(response_text) > 500:
-                            response_text = response_text[:500] + "... Would you like me to continue?"
-
-            return JSONResponse({
-                "result": response_text
-            })
+            result = await _query_nissan_knowledge(question)
+            return JSONResponse({"result": result})
 
         # Unknown function
         return JSONResponse({
@@ -590,6 +649,59 @@ async def vapi_function_handler(request: Request):
         return JSONResponse({
             "result": "I encountered an issue. Could you please try asking again?"
         })
+
+
+async def _query_nissan_knowledge(question: str) -> str:
+    """Query the Nissan knowledge base using OpenAI Assistant."""
+    import re
+
+    if not question:
+        return "I didn't catch your question. Could you please repeat it?"
+
+    try:
+        # Create a temporary thread for this query
+        thread = openai_client.beta.threads.create()
+
+        # Add the question
+        openai_client.beta.threads.messages.create(
+            thread_id=thread.id,
+            role="user",
+            content=question,
+        )
+
+        # Run the assistant
+        run = openai_client.beta.threads.runs.create_and_poll(
+            thread_id=thread.id,
+            assistant_id=ASSISTANT_ID,
+        )
+
+        if run.status != "completed":
+            return "I'm having trouble looking that up right now. Is there something else I can help you with?"
+
+        # Get the response
+        messages = openai_client.beta.threads.messages.list(
+            thread_id=thread.id,
+            order="desc",
+            limit=1,
+        )
+
+        response_text = "I couldn't find specific information about that."
+        if messages.data:
+            for content in messages.data[0].content:
+                if content.type == "text":
+                    # Clean up the response for voice (remove citations)
+                    response_text = content.text.value
+                    # Remove citation markers like 【4:0†source】
+                    response_text = re.sub(r'【[^】]+】', '', response_text)
+                    # Truncate for voice (keep it concise)
+                    if len(response_text) > 500:
+                        response_text = response_text[:500] + "... Would you like me to continue?"
+
+        return response_text
+
+    except Exception as e:
+        print(f"Error querying knowledge base: {e}")
+        return "I encountered an issue looking that up. Could you please try asking again?"
 
 
 # Session management
