@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Bot, User, Loader2 } from "lucide-react";
+import { Send, Bot, User, Loader2, Phone } from "lucide-react";
 import clsx from "clsx";
+import CallbackForm from "./CallbackForm";
 
 interface Message {
   id: string;
@@ -26,6 +27,8 @@ export default function ChatInterface() {
   const [isLoading, setIsLoading] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [showCallbackForm, setShowCallbackForm] = useState(false);
+  const [callbackSuccess, setCallbackSuccess] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const streamingRef = useRef("");
@@ -261,6 +264,22 @@ export default function ChatInterface() {
 
       {/* Input Form */}
       <div className="border-t border-nissan-gray-200 bg-white p-4">
+        {/* Call me button */}
+        <div className="flex justify-center mb-3">
+          <button
+            onClick={() => setShowCallbackForm(true)}
+            className={clsx(
+              "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-colors",
+              callbackSuccess
+                ? "bg-green-100 text-green-700"
+                : "bg-nissan-gray-100 text-nissan-gray-700 hover:bg-nissan-red/10 hover:text-nissan-red"
+            )}
+          >
+            <Phone className="w-4 h-4" />
+            {callbackSuccess ? "Call requested!" : "Prefer a call? Talk to Rashi"}
+          </button>
+        </div>
+
         <form onSubmit={handleSubmit} className="flex gap-2">
           <textarea
             ref={inputRef}
@@ -293,6 +312,18 @@ export default function ChatInterface() {
           Nissan Assistant may make mistakes. Verify important information with a dealer.
         </p>
       </div>
+
+      {/* Callback Form Modal */}
+      {showCallbackForm && (
+        <CallbackForm
+          sessionId={sessionId}
+          onClose={() => setShowCallbackForm(false)}
+          onSuccess={() => {
+            setCallbackSuccess(true);
+            setTimeout(() => setCallbackSuccess(false), 10000);
+          }}
+        />
+      )}
     </div>
   );
 }

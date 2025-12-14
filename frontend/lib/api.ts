@@ -173,11 +173,47 @@ export async function checkHealth(): Promise<{
   status: string;
   assistant_configured: boolean;
   voice_configured: boolean;
+  vapi_configured: boolean;
 }> {
   const response = await fetch(`${API_URL}/health`);
 
   if (!response.ok) {
     throw new Error(`Health check failed: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Request a callback from Rashi (Vapi voice assistant)
+ */
+export interface CallbackRequest {
+  phone_number: string;
+  country_code: string;
+  session_id: string | null;
+  language: string;
+}
+
+export interface CallbackResponse {
+  call_id: string;
+  status: string;
+  message: string;
+}
+
+export async function requestCallback(
+  data: CallbackRequest
+): Promise<CallbackResponse> {
+  const response = await fetch(`${API_URL}/call/request`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: "Request failed" }));
+    throw new Error(error.detail || `Callback request failed: ${response.status}`);
   }
 
   return response.json();

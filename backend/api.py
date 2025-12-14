@@ -9,9 +9,9 @@ import json
 import base64
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, UploadFile, File
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, UploadFile, File, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel
 from openai import OpenAI
 import httpx
@@ -24,6 +24,11 @@ ASSISTANT_ID = os.getenv("OPENAI_ASSISTANT_ID")
 DEEPGRAM_API_KEY = os.getenv("DEEPGRAM_API_KEY")
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
 ELEVENLABS_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM")  # Default: Rachel
+
+# Vapi configuration
+VAPI_API_KEY = os.getenv("VAPI_API_KEY")
+VAPI_ASSISTANT_ID = os.getenv("VAPI_ASSISTANT_ID")
+VAPI_PHONE_NUMBER_ID = os.getenv("VAPI_PHONE_NUMBER_ID")
 
 # Store active threads (in production, use Redis or database)
 active_threads: dict[str, str] = {}
@@ -73,6 +78,19 @@ class TTSRequest(BaseModel):
     voice_id: str | None = None
 
 
+class CallbackRequest(BaseModel):
+    phone_number: str
+    country_code: str
+    session_id: str | None = None
+    language: str = "en"
+
+
+class CallbackResponse(BaseModel):
+    call_id: str
+    status: str
+    message: str
+
+
 # Health check
 @app.get("/health")
 async def health_check():
@@ -80,6 +98,7 @@ async def health_check():
         "status": "healthy",
         "assistant_configured": bool(ASSISTANT_ID),
         "voice_configured": bool(DEEPGRAM_API_KEY and ELEVENLABS_API_KEY),
+        "vapi_configured": bool(VAPI_API_KEY and VAPI_ASSISTANT_ID and VAPI_PHONE_NUMBER_ID),
     }
 
 
@@ -417,6 +436,160 @@ async def voice_websocket(websocket: WebSocket):
         # Cleanup
         if session_id in active_threads:
             del active_threads[session_id]
+
+
+# Vapi Voice Callback endpoints
+@app.post("/call/request", response_model=CallbackResponse)
+async def request_callback(request: CallbackRequest):
+    """Initiate a Vapi outbound call to the user."""
+    if not VAPI_API_KEY or not VAPI_ASSISTANT_ID or not VAPI_PHONE_NUMBER_ID:
+        raise HTTPException(status_code=500, detail="Vapi not configured")
+
+    # Get conversation context if session exists
+    conversation_context = "No previous conversation."
+    if request.session_id and request.session_id in active_threads:
+        thread_id = active_threads[request.session_id]
+        try:
+            messages = openai_client.beta.threads.messages.list(
+                thread_id=thread_id,
+                order="asc",
+                limit=10,
+            )
+            # Build conversation summary
+            context_parts = []
+            for msg in messages.data:
+                for c in msg.content:
+                    if c.type == "text":
+                        role = "Customer" if msg.role == "user" else "Assistant"
+                        context_parts.append(f"{role}: {c.text.value[:200]}")
+            if context_parts:
+                conversation_context = "\n".join(context_parts[-6:])  # Last 6 messages
+        except Exception as e:
+            print(f"Error getting conversation context: {e}")
+
+    # Format phone number
+    full_phone = f"{request.country_code}{request.phone_number}".replace(" ", "")
+
+    # Create Vapi outbound call
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            "https://api.vapi.ai/call/phone",
+            headers={
+                "Authorization": f"Bearer {VAPI_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "assistantId": VAPI_ASSISTANT_ID,
+                "phoneNumberId": VAPI_PHONE_NUMBER_ID,
+                "customer": {
+                    "number": full_phone,
+                },
+                "assistantOverrides": {
+                    "variableValues": {
+                        "conversation_context": conversation_context,
+                        "language": request.language,
+                    }
+                }
+            },
+            timeout=30.0,
+        )
+
+    if response.status_code not in [200, 201]:
+        error_detail = response.text
+        print(f"Vapi call failed: {error_detail}")
+        raise HTTPException(status_code=500, detail=f"Failed to initiate call: {error_detail}")
+
+    result = response.json()
+    return CallbackResponse(
+        call_id=result.get("id", "unknown"),
+        status="initiated",
+        message="Call is being placed. You will receive a call shortly.",
+    )
+
+
+@app.post("/vapi/function")
+async def vapi_function_handler(request: Request):
+    """Webhook endpoint for Vapi function calls (RAG queries)."""
+    try:
+        body = await request.json()
+        print(f"Vapi function call received: {json.dumps(body, indent=2)}")
+
+        # Extract the function call details
+        message = body.get("message", {})
+
+        # Handle different Vapi webhook formats
+        if message.get("type") == "function-call":
+            function_call = message.get("functionCall", {})
+            function_name = function_call.get("name")
+            parameters = function_call.get("parameters", {})
+        else:
+            # Direct function call format
+            function_name = body.get("functionCall", {}).get("name")
+            parameters = body.get("functionCall", {}).get("parameters", {})
+
+        if function_name == "get_nissan_info":
+            question = parameters.get("question", "")
+
+            if not question:
+                return JSONResponse({
+                    "result": "I didn't catch your question. Could you please repeat it?"
+                })
+
+            # Create a temporary thread for this query
+            thread = openai_client.beta.threads.create()
+
+            # Add the question
+            openai_client.beta.threads.messages.create(
+                thread_id=thread.id,
+                role="user",
+                content=question,
+            )
+
+            # Run the assistant
+            run = openai_client.beta.threads.runs.create_and_poll(
+                thread_id=thread.id,
+                assistant_id=ASSISTANT_ID,
+            )
+
+            if run.status != "completed":
+                return JSONResponse({
+                    "result": "I'm having trouble looking that up right now. Is there something else I can help you with?"
+                })
+
+            # Get the response
+            messages = openai_client.beta.threads.messages.list(
+                thread_id=thread.id,
+                order="desc",
+                limit=1,
+            )
+
+            response_text = "I couldn't find specific information about that."
+            if messages.data:
+                for content in messages.data[0].content:
+                    if content.type == "text":
+                        # Clean up the response for voice (remove citations)
+                        response_text = content.text.value
+                        # Remove citation markers like 【4:0†source】
+                        import re
+                        response_text = re.sub(r'【[^】]+】', '', response_text)
+                        # Truncate for voice (keep it concise)
+                        if len(response_text) > 500:
+                            response_text = response_text[:500] + "... Would you like me to continue?"
+
+            return JSONResponse({
+                "result": response_text
+            })
+
+        # Unknown function
+        return JSONResponse({
+            "result": "I'm not sure how to help with that specific request."
+        })
+
+    except Exception as e:
+        print(f"Error in Vapi function handler: {e}")
+        return JSONResponse({
+            "result": "I encountered an issue. Could you please try asking again?"
+        })
 
 
 # Session management

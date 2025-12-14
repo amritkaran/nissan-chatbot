@@ -5,3 +5,4 @@ openai==1.58.0
 httpx==0.28.1
 pydantic==2.10.3
 python-multipart==0.0.19
+vapi-python==0.1.0
