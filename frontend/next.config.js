@@ -8,6 +8,11 @@ const nextConfig = {
         hostname: 'www-europe.nissan-cdn.net',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+        pathname: '/**',
+      },
     ],
   },
 };

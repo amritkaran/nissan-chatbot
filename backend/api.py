@@ -521,15 +521,20 @@ Guidelines:
             ]
         },
         "voice": {
-            "provider": "11labs",
-            "voiceId": "21m00Tcm4TlvDq8ikWAM",  # Rachel - warm female voice
-            "stability": 0.5,
-            "similarityBoost": 0.75
+            "provider": "cartesia",
+            "voiceId": "a01c369f-6d2d-4185-bc20-b32c225eab70",
+        },
+        "transcriber": {
+            "provider": "deepgram",
+            "model": "nova-3",
+            "language": "en",
         },
         "firstMessage": first_message,
         "serverUrl": f"{BACKEND_URL}/vapi/webhook",
         "endCallFunctionEnabled": True,
         "endCallMessage": "Thank you for calling Nissan. Have a great day! Goodbye.",
+        "maxDurationSeconds": 180,
+        "recordingEnabled": True,
     }
 
     # Create Vapi outbound call with inline assistant
@@ -572,7 +577,39 @@ async def vapi_webhook_handler(request: Request):
 
         print(f"Vapi webhook received: {message_type}")
 
-        # Handle function calls
+        # Handle tool-calls (Vapi's current format)
+        if message_type == "tool-calls":
+            tool_calls = body.get("message", {}).get("toolCalls", [])
+            results = []
+
+            for tool_call in tool_calls:
+                tool_call_id = tool_call.get("id", "unknown")
+                function_info = tool_call.get("function", {})
+                function_name = function_info.get("name")
+
+                # Parse arguments (may be string or dict)
+                arguments = function_info.get("arguments", {})
+                if isinstance(arguments, str):
+                    arguments = json.loads(arguments)
+
+                print(f"Tool call: {function_name} with args: {arguments}")
+
+                if function_name == "get_nissan_info":
+                    question = arguments.get("question", "")
+                    result = await _query_nissan_knowledge(question)
+                    results.append({
+                        "toolCallId": tool_call_id,
+                        "result": result
+                    })
+                else:
+                    results.append({
+                        "toolCallId": tool_call_id,
+                        "result": "Function not recognized"
+                    })
+
+            return JSONResponse({"results": results})
+
+        # Handle legacy function-call format
         if message_type == "function-call":
             function_call = body.get("message", {}).get("functionCall", {})
             function_name = function_call.get("name")
@@ -588,6 +625,8 @@ async def vapi_webhook_handler(request: Request):
 
     except Exception as e:
         print(f"Error in Vapi webhook: {e}")
+        import traceback
+        traceback.print_exc()
         return JSONResponse({"status": "error", "message": str(e)})
 
 

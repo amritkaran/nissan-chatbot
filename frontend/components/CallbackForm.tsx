@@ -5,8 +5,10 @@ import { X, Phone, Loader2, CheckCircle, AlertCircle } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-// European countries with dial codes
+// Countries with dial codes
 const COUNTRIES = [
+  { code: "+91", name: "India", flag: "🇮🇳" },
+  { code: "+1", name: "United States", flag: "🇺🇸" },
   { code: "+44", name: "United Kingdom", flag: "🇬🇧" },
   { code: "+353", name: "Ireland", flag: "🇮🇪" },
   { code: "+33", name: "France", flag: "🇫🇷" },
