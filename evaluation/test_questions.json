@@ -1,0 +1,79 @@
+{
+  "test_cases": [
+    {
+      "question": "What is the fuel economy of the 2024 Nissan Rogue?",
+      "ground_truth": "The 2024 Nissan Rogue gets approximately 30 MPG city and 37 MPG highway with the standard engine.",
+      "context_keywords": ["rogue", "mpg", "fuel", "economy"]
+    },
+    {
+      "question": "What is the towing capacity of the Nissan Frontier?",
+      "ground_truth": "The Nissan Frontier has a maximum towing capacity of up to 6,720 pounds when properly equipped.",
+      "context_keywords": ["frontier", "towing", "capacity", "pounds"]
+    },
+    {
+      "question": "What safety features does the Pathfinder have?",
+      "ground_truth": "The Nissan Pathfinder includes Nissan Safety Shield 360 with features like automatic emergency braking, blind spot warning, rear cross traffic alert, lane departure warning, high beam assist, and rear automatic braking.",
+      "context_keywords": ["pathfinder", "safety", "shield", "braking"]
+    },
+    {
+      "question": "What is the starting price of the Nissan Altima?",
+      "ground_truth": "The 2024 Nissan Altima has a starting MSRP of approximately $28,140.",
+      "context_keywords": ["altima", "price", "msrp", "starting"]
+    },
+    {
+      "question": "What engine options are available for the Nissan Maxima?",
+      "ground_truth": "The Nissan Maxima is powered by a 3.5-liter V6 engine producing 300 horsepower.",
+      "context_keywords": ["maxima", "engine", "v6", "horsepower"]
+    },
+    {
+      "question": "What is the range of the Nissan Ariya electric vehicle?",
+      "ground_truth": "The Nissan Ariya offers an EPA-estimated range of up to 304 miles on a single charge, depending on the configuration.",
+      "context_keywords": ["ariya", "range", "electric", "miles"]
+    },
+    {
+      "question": "How many passengers can the Nissan Armada seat?",
+      "ground_truth": "The Nissan Armada can seat up to 8 passengers with its standard three-row seating configuration.",
+      "context_keywords": ["armada", "passengers", "seats", "seating"]
+    },
+    {
+      "question": "What is Nissan ProPILOT Assist?",
+      "ground_truth": "Nissan ProPILOT Assist is an advanced driver assistance system that combines intelligent cruise control with steering assist to help reduce driver fatigue during highway driving.",
+      "context_keywords": ["propilot", "assist", "cruise", "steering"]
+    },
+    {
+      "question": "What warranty does Nissan offer on new vehicles?",
+      "ground_truth": "Nissan offers a 3-year/36,000-mile basic warranty and a 5-year/60,000-mile powertrain warranty on new vehicles.",
+      "context_keywords": ["warranty", "year", "mile", "powertrain"]
+    },
+    {
+      "question": "What are the trim levels available for the Nissan Sentra?",
+      "ground_truth": "The Nissan Sentra is available in S, SV, and SR trim levels.",
+      "context_keywords": ["sentra", "trim", "levels", "sv", "sr"]
+    },
+    {
+      "question": "Does the Nissan Kicks have all-wheel drive?",
+      "ground_truth": "No, the Nissan Kicks is only available with front-wheel drive. It does not offer an all-wheel drive option.",
+      "context_keywords": ["kicks", "wheel", "drive", "awd", "fwd"]
+    },
+    {
+      "question": "What is the cargo capacity of the Nissan Murano?",
+      "ground_truth": "The Nissan Murano offers approximately 32 cubic feet of cargo space behind the rear seats, expanding to about 67 cubic feet with the rear seats folded.",
+      "context_keywords": ["murano", "cargo", "cubic", "feet"]
+    },
+    {
+      "question": "What is the horsepower of the Nissan Titan's engine?",
+      "ground_truth": "The Nissan Titan is powered by a 5.6-liter V8 engine that produces 400 horsepower.",
+      "context_keywords": ["titan", "horsepower", "engine", "v8"]
+    },
+    {
+      "question": "What technology features are included in Nissan vehicles?",
+      "ground_truth": "Nissan vehicles include various technology features such as the NissanConnect infotainment system, Apple CarPlay, Android Auto, wireless charging, and available premium audio systems.",
+      "context_keywords": ["technology", "connect", "carplay", "android"]
+    },
+    {
+      "question": "How do I schedule a service appointment at Nissan?",
+      "ground_truth": "You can schedule a service appointment through the Nissan website, the NissanConnect app, or by contacting your local Nissan dealer directly.",
+      "context_keywords": ["service", "appointment", "schedule", "dealer"]
+    }
+  ]
+}
