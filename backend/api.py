@@ -438,20 +438,8 @@ async def voice_websocket(websocket: WebSocket):
             del active_threads[session_id]
 
 
-# Language-specific greetings for Rashi
-LANGUAGE_GREETINGS = {
-    "en": "Hello! This is Rashi from Nissan customer support. How can I help you today?",
-    "fr": "Bonjour! Je suis Rashi du service client Nissan. Comment puis-je vous aider aujourd'hui?",
-    "de": "Hallo! Hier ist Rashi vom Nissan Kundenservice. Wie kann ich Ihnen heute helfen?",
-    "es": "¡Hola! Soy Rashi del servicio al cliente de Nissan. ¿Cómo puedo ayudarte hoy?",
-    "it": "Ciao! Sono Rashi dell'assistenza clienti Nissan. Come posso aiutarti oggi?",
-    "nl": "Hallo! Dit is Rashi van Nissan klantenservice. Hoe kan ik u vandaag helpen?",
-    "pt": "Olá! Aqui é a Rashi do suporte ao cliente Nissan. Como posso ajudá-lo hoje?",
-    "pl": "Cześć! Tu Rashi z obsługi klienta Nissan. Jak mogę ci dzisiaj pomóc?",
-    "sv": "Hej! Det här är Rashi från Nissan kundtjänst. Hur kan jag hjälpa dig idag?",
-    "da": "Hej! Her er Rashi fra Nissan kundeservice. Hvordan kan jeg hjælpe dig i dag?",
-    "no": "Hei! Dette er Rashi fra Nissan kundeservice. Hvordan kan jeg hjelpe deg i dag?",
-}
+# Rashi greeting
+RASHI_GREETING = "Hello! This is Rashi from Nissan customer support. How can I help you today?"
 
 
 # Vapi Voice Callback endpoints
@@ -486,19 +474,10 @@ async def request_callback(request: CallbackRequest):
     # Format phone number
     full_phone = f"{request.country_code}{request.phone_number}".replace(" ", "")
 
-    # Get greeting in user's language
-    first_message = LANGUAGE_GREETINGS.get(request.language, LANGUAGE_GREETINGS["en"])
-
-    # Add context summary if available
+    # Build greeting
+    first_message = RASHI_GREETING
     if conversation_context != "No previous conversation.":
-        if request.language == "en":
-            first_message += " I see you were asking about some Nissan topics earlier. I'm here to continue helping you."
-        elif request.language == "fr":
-            first_message += " Je vois que vous posiez des questions sur Nissan. Je suis là pour continuer à vous aider."
-        elif request.language == "de":
-            first_message += " Ich sehe, Sie hatten Fragen zu Nissan. Ich bin hier, um Ihnen weiter zu helfen."
-        else:
-            first_message += " I see you were asking about some Nissan topics earlier. I'm here to continue helping you."
+        first_message += " I see you were asking about some Nissan topics earlier. I'm here to continue helping you."
 
     # Build inline assistant configuration
     assistant_config = {
@@ -508,11 +487,10 @@ async def request_callback(request: CallbackRequest):
             "model": "gpt-4o-mini",
             "temperature": 0.7,
             "systemPrompt": f"""You are Rashi, a friendly and professional Nissan customer service assistant.
-You speak multiple European languages fluently. The customer's preferred language is: {request.language}
 
 Your personality:
 - Warm, helpful, and professional
-- Concise - keep responses to 2-3 sentences for voice
+- Concise - keep responses to 2-3 sentences for voice calls
 - Knowledgeable about Nissan vehicles
 
 When answering Nissan-related questions, ALWAYS use the get_nissan_info function to get accurate information from the knowledge base.
@@ -521,7 +499,6 @@ Previous conversation context:
 {conversation_context}
 
 Guidelines:
-- Speak in the customer's language ({request.language})
 - Be concise and friendly
 - Use get_nissan_info for any Nissan vehicle, feature, or service questions
 - If you don't know something, say so honestly

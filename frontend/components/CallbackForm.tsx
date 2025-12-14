@@ -7,21 +7,17 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 // European countries with dial codes
 const COUNTRIES = [
-  { code: "+44", name: "United Kingdom", flag: "🇬🇧", lang: "en" },
-  { code: "+33", name: "France", flag: "🇫🇷", lang: "fr" },
-  { code: "+49", name: "Germany", flag: "🇩🇪", lang: "de" },
-  { code: "+34", name: "Spain", flag: "🇪🇸", lang: "es" },
-  { code: "+39", name: "Italy", flag: "🇮🇹", lang: "it" },
-  { code: "+31", name: "Netherlands", flag: "🇳🇱", lang: "nl" },
-  { code: "+32", name: "Belgium", flag: "🇧🇪", lang: "fr" },
-  { code: "+351", name: "Portugal", flag: "🇵🇹", lang: "pt" },
-  { code: "+43", name: "Austria", flag: "🇦🇹", lang: "de" },
-  { code: "+41", name: "Switzerland", flag: "🇨🇭", lang: "de" },
-  { code: "+353", name: "Ireland", flag: "🇮🇪", lang: "en" },
-  { code: "+48", name: "Poland", flag: "🇵🇱", lang: "pl" },
-  { code: "+46", name: "Sweden", flag: "🇸🇪", lang: "sv" },
-  { code: "+47", name: "Norway", flag: "🇳🇴", lang: "no" },
-  { code: "+45", name: "Denmark", flag: "🇩🇰", lang: "da" },
+  { code: "+44", name: "United Kingdom", flag: "🇬🇧" },
+  { code: "+353", name: "Ireland", flag: "🇮🇪" },
+  { code: "+33", name: "France", flag: "🇫🇷" },
+  { code: "+49", name: "Germany", flag: "🇩🇪" },
+  { code: "+34", name: "Spain", flag: "🇪🇸" },
+  { code: "+39", name: "Italy", flag: "🇮🇹" },
+  { code: "+31", name: "Netherlands", flag: "🇳🇱" },
+  { code: "+32", name: "Belgium", flag: "🇧🇪" },
+  { code: "+351", name: "Portugal", flag: "🇵🇹" },
+  { code: "+43", name: "Austria", flag: "🇦🇹" },
+  { code: "+41", name: "Switzerland", flag: "🇨🇭" },
 ];
 
 interface CallbackFormProps {
@@ -64,7 +60,7 @@ export default function CallbackForm({
           phone_number: cleanNumber,
           country_code: selectedCountry.code,
           session_id: sessionId,
-          language: selectedCountry.lang,
+          language: "en",
         }),
       });
 
