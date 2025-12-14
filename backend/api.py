@@ -667,6 +667,44 @@ async def vapi_function_handler(request: Request):
         })
 
 
+def _format_for_tts(text: str) -> str:
+    """Format text for better TTS pronunciation."""
+    import re
+
+    # Convert prices like £30,615 to spoken form
+    def convert_price(match):
+        amount = match.group(1).replace(',', '')
+        try:
+            num = int(amount)
+            if num >= 1000:
+                thousands = num // 1000
+                remainder = num % 1000
+                if remainder == 0:
+                    return f"{thousands} thousand pounds"
+                else:
+                    return f"{thousands} thousand {remainder} pounds"
+            return f"{num} pounds"
+        except:
+            return match.group(0)
+
+    text = re.sub(r'£([\d,]+)', convert_price, text)
+
+    # Convert kWh to spoken form
+    text = re.sub(r'(\d+)\s*kWh', r'\1 kilowatt hour', text, flags=re.IGNORECASE)
+
+    # Convert common abbreviations
+    text = text.replace('km/h', 'kilometers per hour')
+    text = text.replace('mph', 'miles per hour')
+    text = text.replace('CO2', 'CO2')
+    text = text.replace('g/km', 'grams per kilometer')
+    text = text.replace('L/100km', 'liters per 100 kilometers')
+
+    # Convert bullet points to natural speech
+    text = re.sub(r'[-•]\s*', '', text)
+
+    return text
+
+
 async def _query_nissan_knowledge(question: str) -> str:
     """Query the Nissan knowledge base using OpenAI Assistant."""
     import re
@@ -712,6 +750,9 @@ async def _query_nissan_knowledge(question: str) -> str:
                     # Truncate for voice (keep it concise)
                     if len(response_text) > 500:
                         response_text = response_text[:500] + "... Would you like me to continue?"
+
+        # Format for better TTS pronunciation
+        response_text = _format_for_tts(response_text)
 
         return response_text
 
